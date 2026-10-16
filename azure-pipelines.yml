@@ -1,4 +1,4 @@
-
+﻿
 trigger:
   branches:
     include:
@@ -22,10 +22,10 @@ stages:
     jobs:
       - job: PrepararAplicacion
         steps:
-          - task: NodeTool@0
+          - task: UseNode@1
             displayName: 'Configurar Node.js'
             inputs:
-              versionSpec: '24.x'
+              version: '24.x'
 
           - script: |
               npm ci
@@ -43,10 +43,10 @@ stages:
     jobs:
       - job: PruebasSmoke
         steps:
-          - task: NodeTool@0
+          - task: UseNode@1
             displayName: 'Configurar Node.js'
             inputs:
-              versionSpec: '24.x'
+              version: '24.x'
 
           - script: |
               npm ci
@@ -82,10 +82,10 @@ stages:
     jobs:
       - job: PruebasCarga
         steps:
-          - task: NodeTool@0
+          - task: UseNode@1
             displayName: 'Configurar Node.js'
             inputs:
-              versionSpec: '24.x'
+              version: '24.x'
 
           - script: |
               npm ci
