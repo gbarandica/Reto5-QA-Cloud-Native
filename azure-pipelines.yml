@@ -110,5 +110,5 @@ stages:
               docker run --rm \
                 --network host \
                 -v "$(Build.SourcesDirectory)/pipeline:/scripts:ro" \
-                grafana/k6:2.2.0 run /scripts/load-test.js
+                grafana/k6:2.2.0 run /scripts/load-test-fail.js
             displayName: 'Ejecutar k6 y evaluar Quality Gates'
