@@ -1,0 +1,114 @@
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+
+  # ==========================================
+  # STAGE 1 - BUILD
+  # ==========================================
+  - stage: Build
+    displayName: 'Build - Preparar aplicacion'
+    jobs:
+      - job: PrepararAplicacion
+        steps:
+          - task: NodeTool@0
+            displayName: 'Configurar Node.js'
+            inputs:
+              versionSpec: '24.x'
+
+          - script: |
+              npm ci
+              node datos/validar-datos.js
+            workingDirectory: '$(Build.SourcesDirectory)/app-tienda'
+            displayName: 'Instalar dependencias y validar datos'
+
+  # ==========================================
+  # STAGE 2 - SMOKE TESTS
+  # ==========================================
+  - stage: SmokeTests
+    displayName: 'SmokeTests - Validar API'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: PruebasSmoke
+        steps:
+          - task: NodeTool@0
+            displayName: 'Configurar Node.js'
+            inputs:
+              versionSpec: '24.x'
+
+          - script: |
+              npm ci
+              npm start > /tmp/app-tienda.log 2>&1 &
+            workingDirectory: '$(Build.SourcesDirectory)/app-tienda'
+            displayName: 'Instalar e iniciar aplicacion'
+
+          - script: |
+              for i in $(seq 1 30); do
+                if curl --fail --silent http://localhost:3000/api/health > /dev/null; then
+                  echo "API disponible"
+                  exit 0
+                fi
+                sleep 1
+              done
+
+              echo "ERROR: la API no estuvo disponible"
+              exit 1
+            displayName: 'Esperar disponibilidad de API'
+
+          - script: |
+              node pipeline/smoke-tests.js
+            workingDirectory: '$(Build.SourcesDirectory)'
+            displayName: 'Ejecutar Smoke Tests'
+
+  # ==========================================
+  # STAGE 3 - LOAD TEST
+  # ==========================================
+  - stage: LoadTest
+    displayName: 'LoadTest - Quality Gates k6'
+    dependsOn: SmokeTests
+    condition: succeeded()
+    jobs:
+      - job: PruebasCarga
+        steps:
+          - task: NodeTool@0
+            displayName: 'Configurar Node.js'
+            inputs:
+              versionSpec: '24.x'
+
+          - script: |
+              npm ci
+              npm start > /tmp/app-tienda.log 2>&1 &
+            workingDirectory: '$(Build.SourcesDirectory)/app-tienda'
+            displayName: 'Instalar e iniciar aplicacion'
+
+          - script: |
+              for i in $(seq 1 30); do
+                if curl --fail --silent http://localhost:3000/api/health > /dev/null; then
+                  echo "API disponible"
+                  exit 0
+                fi
+                sleep 1
+              done
+
+              echo "ERROR: la API no estuvo disponible"
+              exit 1
+            displayName: 'Esperar disponibilidad de API'
+
+          - script: |
+              docker run --rm \
+                --network host \
+                -v "$(Build.SourcesDirectory)/pipeline:/scripts:ro" \
+                grafana/k6:2.2.0 run /scripts/load-test.js
+            displayName: 'Ejecutar k6 y evaluar Quality Gates'
