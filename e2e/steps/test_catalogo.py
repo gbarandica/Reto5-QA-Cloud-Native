@@ -105,3 +105,39 @@ def verificar_resultados_busqueda(cliente, busqueda):
             f"El producto '{nombre}' no coincide "
             f"con la búsqueda '{nombre_buscado}'"
         )
+
+@when('busca el producto inexistente "ProductoInexistenteXYZ999"')
+def buscar_producto_inexistente(cliente):
+    """
+    Realiza una búsqueda con un nombre que no existe
+    en el catálogo.
+
+    La aplicación ejecuta la búsqueda automáticamente
+    mientras el usuario escribe.
+    """
+    cliente.intenta(BuscarProducto("ProductoInexistenteXYZ999"))
+
+
+@then("no debe visualizar productos en el catálogo")
+def verificar_catalogo_sin_resultados(cliente):
+    """
+    Comprueba que la búsqueda no devuelve tarjetas
+    de productos.
+    """
+    tarjetas = cliente.page.get_by_test_id("producto-card")
+
+    expect(tarjetas).to_have_count(0)
+
+
+@then('debe visualizar el mensaje "No hay productos que coincidan."')
+def verificar_mensaje_sin_resultados(cliente):
+    """
+    Verifica el mensaje que informa al usuario
+    que no existen productos coincidentes.
+    """
+    mensaje = cliente.page.get_by_text(
+        "No hay productos que coincidan.",
+        exact=True
+    )
+
+    expect(mensaje).to_be_visible()

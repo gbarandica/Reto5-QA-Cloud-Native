@@ -12,3 +12,9 @@ Feature: Consulta del catálogo de productos
     Given que el cliente ingresa al catálogo
     When busca un producto por su nombre
     Then debe visualizar únicamente productos que coincidan con la búsqueda
+
+  Scenario: Buscar un producto inexistente en el catálogo
+    Given que el cliente ingresa al catálogo
+    When busca el producto inexistente "ProductoInexistenteXYZ999"
+    Then no debe visualizar productos en el catálogo
+    And debe visualizar el mensaje "No hay productos que coincidan."
