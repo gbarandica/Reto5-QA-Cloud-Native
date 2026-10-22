@@ -16,6 +16,7 @@ allure-results/
 allure-report/
 *.webm
 trace.zip
+resultados-junit.xml
 
 # Variables de entorno y credenciales
 .env

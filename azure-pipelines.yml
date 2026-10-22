@@ -112,3 +112,65 @@ stages:
                 -v "$(Build.SourcesDirectory)/pipeline:/scripts:ro" \
                 grafana/k6:2.2.0 run /scripts/load-test.js
             displayName: 'Ejecutar k6 y evaluar Quality Gates'
+
+  # ==========================================
+  # STAGE 4 - E2E TESTS
+  # ==========================================
+  - stage: E2ETests
+    displayName: 'E2ETests - Playwright y BDD'
+    dependsOn: LoadTest
+    condition: succeeded()
+    jobs:
+      - job: PruebasE2E
+        displayName: 'Ejecutar pruebas E2E'
+        steps:
+          - task: UseNode@1
+            displayName: 'Configurar Node.js'
+            inputs:
+              version: '24.x'
+
+          - task: UsePythonVersion@0
+            displayName: 'Configurar Python'
+            inputs:
+              versionSpec: '3.13'
+
+          - script: |
+              npm ci
+              npm start > /tmp/app-tienda-e2e.log 2>&1 &
+            workingDirectory: '$(Build.SourcesDirectory)/app-tienda'
+            displayName: 'Instalar e iniciar tienda'
+
+          - script: |
+              for i in $(seq 1 30); do
+                if curl --fail --silent http://localhost:3000/api/health > /dev/null; then
+                  echo "API disponible"
+                  exit 0
+                fi
+                sleep 1
+              done
+
+              echo "ERROR: la API no estuvo disponible"
+              cat /tmp/app-tienda-e2e.log
+              exit 1
+            displayName: 'Esperar disponibilidad de la tienda'
+
+          - script: |
+              python -m pip install --upgrade pip
+              python -m pip install -r e2e/requirements.txt
+              python -m playwright install --with-deps chromium
+            displayName: 'Instalar Playwright y dependencias'
+
+          - script: |
+              python -m pytest -c e2e/pytest.ini e2e/steps/ \
+                --junitxml=e2e/resultados-junit.xml
+            displayName: 'Ejecutar escenarios E2E'
+
+          - task: PublishTestResults@2
+            displayName: 'Publicar resultados E2E en Azure DevOps'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'e2e/resultados-junit.xml'
+              searchFolder: '$(Build.SourcesDirectory)'
+              testRunTitle: 'Pruebas E2E - Playwright BDD'
+              failTaskOnFailedTests: true
