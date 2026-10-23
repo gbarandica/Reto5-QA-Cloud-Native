@@ -174,3 +174,163 @@ stages:
               searchFolder: '$(Build.SourcesDirectory)'
               testRunTitle: 'Pruebas E2E - Playwright BDD'
               failTaskOnFailedTests: true
+
+  
+  # ==========================================
+  # STAGE 5 - CLOUD TESTS - SAUCE LABS
+  # ==========================================
+  - stage: CloudTests
+    displayName: 'CloudTests - E2E en Sauce Labs'
+    dependsOn: E2ETests
+    condition: succeeded()
+    jobs:
+      - job: PruebasSauceLabs
+        displayName: 'Ejecutar Playwright BDD en Sauce Labs'
+        timeoutInMinutes: 30
+        steps:
+          - task: UseNode@1
+            displayName: 'Configurar Node.js'
+            inputs:
+              version: '24.x'
+
+          - task: UsePythonVersion@0
+            displayName: 'Configurar Python'
+            inputs:
+              versionSpec: '3.13'
+
+          - script: |
+              set -Eeuo pipefail
+
+              ROOT="$(Build.SourcesDirectory)"
+              TUNNEL_NAME="reto5-tunnel-$(Build.BuildId)"
+
+              cleanup() {
+                echo "Cerrando procesos de la ejecucion cloud..."
+                if [ -n "${SC_PID:-}" ]; then
+                  kill "$SC_PID" 2>/dev/null || true
+                fi
+                if [ -n "${APP_PID:-}" ]; then
+                  kill "$APP_PID" 2>/dev/null || true
+                fi
+              }
+              trap cleanup EXIT
+
+              echo "FASE 1: Preparar aplicacion"
+              cd "$ROOT/app-tienda"
+              npm ci
+
+              nohup npm start </dev/null \
+                > "$ROOT/app-sauce.log" 2>&1 &
+              APP_PID=$!
+
+              APP_READY=0
+              for i in $(seq 1 30); do
+                if curl -fsS http://localhost:3000/api/health \
+                  > /dev/null; then
+                  APP_READY=1
+                  break
+                fi
+                sleep 1
+              done
+
+              if [ "$APP_READY" != "1" ]; then
+                echo "##[error]La aplicacion no inicio"
+                cat "$ROOT/app-sauce.log"
+                exit 1
+              fi
+
+              echo "FASE 2: Preparar Playwright"
+              cd "$ROOT"
+              python -m pip install -r e2e/requirements.txt
+              python -m playwright install --with-deps chromium
+              mkdir -p e2e/resultados-cloud
+
+              echo "FASE 3: Descargar Sauce Connect"
+              mkdir -p "$ROOT/sauce-connect"
+              curl -fL --retry 3 \
+                -o "$ROOT/sauce-connect/sc.tar.gz" \
+                "https://saucelabs.com/downloads/sauce-connect/5.2.2/sauce-connect-5.2.2_linux.x86_64.tar.gz"
+
+              tar -xzf "$ROOT/sauce-connect/sc.tar.gz" \
+                -C "$ROOT/sauce-connect"
+
+              SC_BIN=$(find "$ROOT/sauce-connect" \
+                -type f \( -name sc -o -name sauce-connect \) \
+                | head -n 1)
+
+              if [ -z "$SC_BIN" ]; then
+                echo "##[error]No se encontro Sauce Connect"
+                exit 1
+              fi
+
+              chmod +x "$SC_BIN"
+
+              echo "FASE 4: Iniciar tunel"
+              nohup "$SC_BIN" run \
+                --username "$SAUCE_USERNAME" \
+                --access-key "$SAUCE_ACCESS_KEY" \
+                --region us-west-1 \
+                --tunnel-name "$TUNNEL_NAME" \
+                --proxy-localhost allow \
+                --api-address :9000 \
+                </dev/null > "$ROOT/sc.log" 2>&1 &
+              SC_PID=$!
+
+              TUNNEL_READY=0
+              for i in $(seq 1 90); do
+                if curl -fsS http://localhost:9000/readyz \
+                  > /dev/null 2>&1; then
+                  TUNNEL_READY=1
+                  break
+                fi
+
+                if ! kill -0 "$SC_PID" 2>/dev/null; then
+                  break
+                fi
+
+                sleep 2
+              done
+
+              if [ "$TUNNEL_READY" != "1" ]; then
+                echo "##[error]El tunel no esta disponible"
+                cat "$ROOT/sc.log"
+                exit 1
+              fi
+
+              echo "FASE 5: Ejecutar escenarios en Sauce Labs"
+              export SAUCE=1
+              export SAUCE_REGION=us-west-1
+              export SAUCE_BROWSER=chrome
+              export SAUCE_PLATFORM="Windows 11"
+              export SAUCE_TUNNEL="$TUNNEL_NAME"
+              export BASE_URL="http://localhost:3000"
+              export BUILD_TAG="reto5-$(Build.BuildId)"
+
+              python -m pytest \
+                -c e2e/pytest.ini \
+                e2e/steps/ \
+                --headed \
+                --junitxml=e2e/resultados-cloud/junit-sauce.xml
+
+            displayName: 'Iniciar tienda, tunel y ejecutar E2E'
+            env:
+              SAUCE_USERNAME: $(SAUCE_USERNAME)
+              SAUCE_ACCESS_KEY: $(SAUCE_ACCESS_KEY)
+
+          - task: PublishTestResults@2
+            displayName: 'Publicar resultados Sauce Labs'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: 'e2e/resultados-cloud/junit-sauce.xml'
+              searchFolder: '$(Build.SourcesDirectory)'
+              testRunTitle: 'E2E - Sauce Labs - Playwright BDD'
+              failTaskOnFailedTests: true
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publicar evidencia Sauce Labs'
+            condition: succeededOrFailed()
+            inputs:
+              targetPath: '$(Build.SourcesDirectory)/e2e/resultados-cloud'
+              artifact: 'resultados-sauce'
+
