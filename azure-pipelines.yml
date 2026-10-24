@@ -73,11 +73,56 @@ stages:
             displayName: 'Ejecutar Smoke Tests'
 
   # ==========================================
-  # STAGE 3 - LOAD TEST
+  # STAGE 3 - CONTRACT TESTS - PACT
+  # ==========================================
+  - stage: ContractTests
+    displayName: 'ContractTests - Pact Consumer y Provider'
+    dependsOn: SmokeTests
+    condition: succeeded()
+    jobs:
+      - job: PruebasContratos
+        displayName: 'Verificar contratos de API'
+        steps:
+          - task: UseNode@1
+            displayName: 'Configurar Node.js'
+            inputs:
+              version: '24.x'
+
+          - script: |
+              npm ci
+              npm start > /tmp/app-tienda-pact.log 2>&1 &
+            workingDirectory: '$(Build.SourcesDirectory)/app-tienda'
+            displayName: 'Instalar e iniciar aplicacion'
+
+          - script: |
+              for i in $(seq 1 30); do
+                if curl --fail --silent http://localhost:3000/api/health > /dev/null; then
+                  echo "API disponible para Pact"
+                  exit 0
+                fi
+                sleep 1
+              done
+
+              echo "ERROR: la API no estuvo disponible"
+              cat /tmp/app-tienda-pact.log
+              exit 1
+            displayName: 'Esperar disponibilidad de API'
+
+          - script: |
+              npm ci
+              npm test
+            workingDirectory: '$(Build.SourcesDirectory)/pact'
+            displayName: 'Ejecutar pruebas de contratos Pact'
+            env:
+              PROVIDER_URL: 'http://localhost:3000'
+              PACT_DO_NOT_TRACK: 'true'
+
+  # ==========================================
+  # STAGE 4 - LOAD TEST
   # ==========================================
   - stage: LoadTest
     displayName: 'LoadTest - Quality Gates k6'
-    dependsOn: SmokeTests
+    dependsOn: ContractTests
     condition: succeeded()
     jobs:
       - job: PruebasCarga
@@ -114,7 +159,7 @@ stages:
             displayName: 'Ejecutar k6 y evaluar Quality Gates'
 
   # ==========================================
-  # STAGE 4 - E2E TESTS
+  # STAGE 5 - E2E TESTS
   # ==========================================
   - stage: E2ETests
     displayName: 'E2ETests - Playwright y BDD'
@@ -177,7 +222,7 @@ stages:
 
   
   # ==========================================
-  # STAGE 5 - CLOUD TESTS - SAUCE LABS
+  # STAGE 6 - CLOUD TESTS - SAUCE LABS
   # ==========================================
   - stage: CloudTests
     displayName: 'CloudTests - E2E en Sauce Labs'
@@ -333,4 +378,5 @@ stages:
             inputs:
               targetPath: '$(Build.SourcesDirectory)/e2e/resultados-cloud'
               artifact: 'resultados-sauce'
+
 

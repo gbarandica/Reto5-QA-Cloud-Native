@@ -12,19 +12,17 @@ FROM node:20-alpine
 # Directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# 1) Copiar solo package.json primero (mejor cache de capas):
-#    si el codigo cambia pero las deps no, no reinstala.
+# Copiar los manifiestos para aprovechar la cache de Docker.
 COPY package*.json ./
 
-# 2) Instalar dependencias de produccion.
-#    El "postinstall" genera datos/db.json con Faker automaticamente.
+# El script postinstall necesita este archivo durante npm install.
+COPY datos/generar-datos.js ./datos/generar-datos.js
+
+# Instalar dependencias y ejecutar postinstall.
 RUN npm install --omit=dev
 
-# 3) Copiar el resto del proyecto (servidor + front + datos).
+# Copiar el resto de la aplicacion.
 COPY . .
-
-# 4) Regenerar los datos por si el COPY trajo un db.json viejo o ninguno.
-RUN node datos/generar-datos.js
 
 # La app escucha en el puerto 3000 (configurable con la variable PORT).
 ENV PORT=3000

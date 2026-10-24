@@ -1,0 +1,23 @@
+
+{
+  "name": "pact",
+  "version": "1.0.0",
+  "description": "Pruebas de contrato Consumer-Driven con Pact para Tienda QA",
+  "main": "index.js",
+  "scripts": {
+    "test:consumer": "node consumer/productos.consumer.test.cjs",
+    "test:provider": "node provider/productos.provider.test.cjs",
+    "test": "npm run test:consumer && npm run test:provider"
+  },
+  "keywords": [
+    "pact",
+    "contract-testing",
+    "qa-automation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@pact-foundation/pact": "^17.1.4"
+  }
+}
