@@ -155,9 +155,189 @@ Estos resultados validan la ejecución remota en Chrome sobre Windows 11. No rep
 
 ### Fase 5. Contenedores y pruebas de contratos
 
-**Pendiente de implementación y validación.**
+Se implementó una estrategia de contenerización y pruebas de contratos para la aplicación Tienda QA, utilizando Docker, Azure Container Registry (ACR), Pact y Azure DevOps.
 
-Se contempla incorporar Docker para la ejecución de componentes del proyecto y Pact para verificar contratos entre servicios.
+El objetivo de esta fase fue garantizar que la aplicación pudiera ejecutarse en un entorno contenerizado y verificar la compatibilidad entre el consumidor (frontend) y el proveedor (API).
+
+#### Contenerización con Docker
+
+Se implementó el archivo `app-tienda/Dockerfile` para empaquetar la aplicación Node.js, instalar sus dependencias y ejecutar la generación de datos sintéticos.
+
+La configuración incluye:
+
+- Imagen base `node:20-alpine`.
+- Instalación de dependencias de producción.
+- Generación reproducible de datos mediante Faker.
+- Exposición del puerto `3000`.
+- Healthcheck sobre el endpoint `/api/health`.
+- Archivo `.dockerignore` para excluir archivos innecesarios del contexto de construcción.
+
+La imagen fue construida y ejecutada localmente con la etiqueta `reto5-tienda-qa:1.0`.
+
+Se verificó que el contenedor permaneciera en estado `healthy` y que el endpoint `/api/health` respondiera correctamente.
+
+**Comandos principales:**
+
+```bash
+docker build -t reto5-tienda-qa:1.0 ./app-tienda
+
+docker run -d --name reto5-tienda -p 3000:3000 reto5-tienda-qa:1.0
+
+docker ps
+```
+
+**Validación del servicio:**
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/health"
+```
+
+Resultado: servicio `app-tienda` con estado `ok`.
+
+#### Publicación en Azure Container Registry
+
+Se creó un registro privado de contenedores en Microsoft Azure para almacenar y versionar la imagen Docker de la aplicación.
+
+| Propiedad | Valor |
+|---|---|
+| Servicio | Azure Container Registry |
+| Registro | `acrreto5qacloudnative` |
+| Repositorio | `reto5-tienda-qa` |
+| Etiqueta | `1.0` |
+| Región | East US |
+| Plan | Basic |
+| Estado | Imagen publicada y verificada |
+
+**Comandos de publicación:**
+
+```bash
+az acr login --name acrreto5qacloudnative
+
+docker tag reto5-tienda-qa:1.0 acrreto5qacloudnative.azurecr.io/reto5-tienda-qa:1.0
+
+docker push acrreto5qacloudnative.azurecr.io/reto5-tienda-qa:1.0
+```
+
+La publicación finalizó exitosamente y se comprobó desde Azure Portal que el repositorio contiene la imagen versionada `1.0`.
+
+**Digest SHA-256:**
+
+`c8d21c7dc28b126507fce65a28a781269fc333305d4be2c0e1fed1b7095ca701`
+
+La publicación en ACR permite almacenar la imagen para futuros despliegues. No se realizó un despliegue adicional en Azure App Service o Container Apps, ya que era opcional.
+
+#### Contract Testing con Pact
+
+Se implementaron pruebas de contrato Consumer-Driven utilizando `@pact-foundation/pact`.
+
+Los participantes del contrato son:
+
+- **Consumer:** `TiendaQAFrontend`, que consume los servicios del catálogo.
+- **Provider:** `TiendaQAAPI`, que expone los endpoints REST.
+- **Contrato:** `pact/contracts/TiendaQAFrontend-TiendaQAAPI.json`.
+
+Se definieron dos interacciones:
+
+| Endpoint | Método | Validación |
+|---|---|---|
+| `/api/productos` | GET | Consulta del catálogo y estructura de los productos |
+| `/api/productos/1` | GET | Consulta del detalle de un producto y estructura de la respuesta |
+
+Las pruebas del consumidor verifican las respuestas esperadas mediante un servidor simulado de Pact. Posteriormente, las pruebas del proveedor verifican que la API real satisface las interacciones definidas en el contrato.
+
+**Estructura implementada:**
+
+```text
+pact/
+├── consumer/
+│   └── productos.consumer.test.cjs
+├── provider/
+│   └── productos.provider.test.cjs
+├── contracts/
+│   └── TiendaQAFrontend-TiendaQAAPI.json
+├── package.json
+└── package-lock.json
+```
+
+**Ejecución:**
+
+Desde el directorio `pact/`, con la API iniciada:
+
+```bash
+npm ci
+npm test
+```
+
+También pueden ejecutarse las verificaciones por separado:
+
+```bash
+npm run test:consumer
+npm run test:provider
+```
+
+**Resultado:** las dos interacciones del consumidor y las dos verificaciones del proveedor finalizaron correctamente.
+
+#### Integración de Pact en Azure DevOps
+
+Se incorporó una nueva etapa `ContractTests` al archivo `azure-pipelines.yml`, después de `SmokeTests` y antes de `LoadTest`.
+
+Esta etapa instala las dependencias, inicia la aplicación, espera a que el endpoint de salud esté disponible y ejecuta las pruebas Consumer y Provider de Pact.
+
+**Flujo actualizado del pipeline:**
+
+1. `Build`: preparación de la aplicación.
+2. `SmokeTests`: validación básica de la API.
+3. `ContractTests`: verificación de contratos con Pact.
+4. `LoadTest`: pruebas de carga y Quality Gates con k6.
+5. `E2ETests`: escenarios funcionales con Playwright y BDD.
+6. `CloudTests`: ejecución remota mediante Sauce Labs.
+
+**Ejecución validada:** `#20261024.1`
+
+**Commit:** `f9eb6a1`
+
+| Indicador | Resultado |
+|---|---|
+| Etapas del pipeline | 6 de 6 aprobadas |
+| Etapa `ContractTests` | Aprobada |
+| Contratos verificados | Catálogo y detalle de producto |
+| Verificación Provider | Exitosa |
+| Estado general | Success |
+| Duración total | 6 minutos y 44 segundos |
+
+La integración permite detectar incompatibilidades entre el consumidor y el proveedor antes de continuar con las pruebas de carga y las pruebas E2E.
+
+#### Reto extra: análisis de microservicios
+
+Se evaluó la conveniencia de dividir la aplicación Tienda QA en microservicios.
+
+Actualmente se recomienda mantener un **monolito modular**, debido al tamaño de la aplicación y al alcance funcional del proyecto.
+
+Una posible evolución contemplaría servicios independientes de:
+
+- **Catálogo:** información y consulta de productos.
+- **Inventario:** disponibilidad y reserva de existencias.
+- **Pedidos:** creación y gestión de órdenes.
+
+En esa arquitectura aparecerían contratos entre el frontend y el catálogo, entre pedidos e inventario y entre pedidos y catálogo.
+
+La separación permitiría escalar y desplegar componentes de forma independiente, pero también introduciría mayor complejidad operativa, comunicación distribuida y necesidades adicionales de observabilidad y pruebas de integración.
+
+**Decisión arquitectónica:** conservar el monolito modular mientras no existan necesidades justificadas de escalabilidad independiente o autonomía entre equipos. Si la aplicación evoluciona a microservicios, ampliar las pruebas de contrato Pact para cubrir las nuevas interacciones.
+
+#### Evidencias de la Fase 5
+
+| Evidencia | Descripción |
+|---|---|
+| [01 - Ejecución automática del pipeline](docs/evidencias/fase-5/01_Ejecucion_automatica_pipeline_CICD_Pact_Azure_DevOps.png) | Activación automática del pipeline CI/CD después de publicar los cambios de Docker y Pact en GitHub. |
+| [02 - Pipeline CI/CD con seis etapas exitosas](docs/evidencias/fase-5/02_Pipeline_CICD_6_Etapas_Exitosas_Azure_DevOps.png) | Ejecución satisfactoria de las seis etapas del pipeline, incluida la nueva etapa `ContractTests`. |
+| [03 - Ejecución de pruebas de contratos Pact](docs/evidencias/fase-5/03_Ejecucion_Pruebas_Contratos_Pact_Azure_DevOps.png) | Ejecución de las pruebas Consumer y Provider de Pact dentro del pipeline de Azure DevOps. |
+| [04 - Verificación exitosa del Provider](docs/evidencias/fase-5/04_Verificacion_Exitosa_Provider_Pact_Azure_DevOps.png) | Verificación satisfactoria de los contratos de los endpoints `/api/productos` y `/api/productos/1`, validando respuestas HTTP 200 y estructuras JSON esperadas. |
+| [05 - Contenedor Docker saludable](docs/evidencias/fase-5/05_Contenedor_Docker_Healthy_API_Tienda_QA.png) | Ejecución de Tienda QA en Docker, confirmando el estado `healthy` del contenedor y la respuesta correcta del endpoint `/api/health`. |
+| [06 - Publicación de imagen Docker en Azure ACR](docs/evidencias/fase-5/06_Publicacion_Imagen_Docker_Azure_ACR.png) | Autenticación, etiquetado y publicación exitosa de la imagen `reto5-tienda-qa:1.0` en Azure Container Registry mediante `docker push`. |
+| [07 - Imagen Docker almacenada en Azure Container Registry](docs/evidencias/fase-5/07_Imagen_Docker_Publicada_Azure_Container_Registry.png) | Verificación desde Azure Portal del repositorio `reto5-tienda-qa`, la etiqueta `1.0` y su identificador SHA-256. |
+
+**Resultado de la fase:** contenerización exitosa de Tienda QA, publicación de la imagen en Azure Container Registry y validación de contratos Consumer y Provider mediante Pact, integrados en un pipeline CI/CD con seis etapas aprobadas.
 
 ### Fase 6. Métricas DORA y estrategia de calidad
 
@@ -167,11 +347,17 @@ Se contempla documentar métricas DORA, pirámide de pruebas, riesgos y recomend
 
 ## Estado del proyecto
 
-**Fases 1 a 4 desarrolladas y documentadas.**
+**Fases 1 a 5 desarrolladas y documentadas.**
 
-La integración de pruebas E2E con Sauce Labs fue validada exitosamente en Azure DevOps.
+- **Fase 1:** generación reproducible de datos con Faker.
+- **Fase 2:** pipeline CI/CD y Quality Gates con k6.
+- **Fase 3:** automatización E2E con Playwright, pytest-bdd y Screenplay.
+- **Fase 4:** ejecución remota de pruebas E2E mediante Sauce Labs.
+- **Fase 5:** contenerización Docker, publicación en Azure Container Registry y pruebas de contratos Pact.
 
-Las fases 5 y 6 se encuentran pendientes.
+**Última ejecución validada de Azure DevOps:** `#20261024.1`, con seis etapas completadas satisfactoriamente.
+
+**Fase 6:** pendiente de desarrollo. Se abordarán métricas DORA y estrategia de calidad.
 
 ## Referencia académica
 
