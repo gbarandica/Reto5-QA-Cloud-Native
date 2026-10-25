@@ -162,14 +162,15 @@ test("propaga errores de consulta sin generar datos parciales", async () => {
 });
 
 
+
 test("acepta una ejecucion con las seis etapas exitosas", () => {
   const nombresEtapas = [
-    "Build",
-    "SmokeTests",
-    "ContractTests",
-    "LoadTest",
-    "E2ETests",
-    "CloudTests"
+    "Build - Preparar aplicacion",
+    "SmokeTests - Validar API",
+    "ContractTests - Pact Consumer y Provider",
+    "LoadTest - Quality Gates k6",
+    "E2ETests - Playwright y BDD",
+    "CloudTests - E2E en Sauce Labs"
   ];
 
   const registros = nombresEtapas.map((nombre) => ({
@@ -185,12 +186,13 @@ test("acepta una ejecucion con las seis etapas exitosas", () => {
 });
 
 test("rechaza una ejecucion cuando falta una etapa obligatoria", () => {
+  // Se omite CloudTests intencionalmente.
   const nombresEtapas = [
-    "Build",
-    "SmokeTests",
-    "ContractTests",
-    "LoadTest",
-    "E2ETests"
+    "Build - Preparar aplicacion",
+    "SmokeTests - Validar API",
+    "ContractTests - Pact Consumer y Provider",
+    "LoadTest - Quality Gates k6",
+    "E2ETests - Playwright y BDD"
   ];
 
   const registros = nombresEtapas.map((nombre) => ({
@@ -207,19 +209,22 @@ test("rechaza una ejecucion cuando falta una etapa obligatoria", () => {
 
 test("rechaza una ejecucion cuando una etapa ha fallado", () => {
   const nombresEtapas = [
-    "Build",
-    "SmokeTests",
-    "ContractTests",
-    "LoadTest",
-    "E2ETests",
-    "CloudTests"
+    "Build - Preparar aplicacion",
+    "SmokeTests - Validar API",
+    "ContractTests - Pact Consumer y Provider",
+    "LoadTest - Quality Gates k6",
+    "E2ETests - Playwright y BDD",
+    "CloudTests - E2E en Sauce Labs"
   ];
 
   const registros = nombresEtapas.map((nombre) => ({
     type: "Stage",
     name: nombre,
     state: "completed",
-    result: nombre === "LoadTest" ? "failed" : "succeeded"
+    result:
+      nombre === "LoadTest - Quality Gates k6"
+        ? "failed"
+        : "succeeded"
   }));
 
   const resultado = tieneEtapasObligatorias(registros);

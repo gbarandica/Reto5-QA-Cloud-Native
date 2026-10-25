@@ -110,12 +110,24 @@ async function obtenerTimeline(buildId) {
 }
 
 // 3. Verificar que las seis etapas obligatorias sean exitosas.
+
 function tieneEtapasObligatorias(registros) {
   if (!Array.isArray(registros)) {
     throw new Error(
       "Los registros del Timeline deben ser una lista."
     );
   }
+
+  // Azure DevOps devuelve el displayName en registro.name.
+  // Por eso validamos los nombres visibles completos.
+  const nombresEtapas = {
+    Build: "Build - Preparar aplicacion",
+    SmokeTests: "SmokeTests - Validar API",
+    ContractTests: "ContractTests - Pact Consumer y Provider",
+    LoadTest: "LoadTest - Quality Gates k6",
+    E2ETests: "E2ETests - Playwright y BDD",
+    CloudTests: "CloudTests - E2E en Sauce Labs"
+  };
 
   const etapasExitosas = new Set(
     registros
@@ -129,7 +141,7 @@ function tieneEtapasObligatorias(registros) {
   );
 
   return ETAPAS_OBLIGATORIAS.every(
-    (etapa) => etapasExitosas.has(etapa)
+    (etapa) => etapasExitosas.has(nombresEtapas[etapa])
   );
 }
 
@@ -249,26 +261,6 @@ async function main() {
     const registrosTimeline = await obtenerTimeline(
       candidato.id
     );
-
-    // DIAGNÓSTICO TEMPORAL:
-    // Mostrar las etapas del primer candidato para comprobar
-    // los nombres y estados reales devueltos por Azure DevOps.
-    if (candidato === candidatos[0]) {
-      console.log("========================================");
-      console.log("DIAGNÓSTICO TIMELINE");
-      console.log(`Build analizado: ${candidato.id}`);
-      console.log("========================================");
-
-      console.table(
-        registrosTimeline
-          .filter((registro) => registro.type === "Stage")
-          .map((registro) => ({
-            name: registro.name,
-            state: registro.state,
-            result: registro.result
-          }))
-      );
-    }
 
     // Conservar la validación original de las seis etapas.
     if (tieneEtapasObligatorias(registrosTimeline)) {
