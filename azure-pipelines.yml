@@ -220,7 +220,7 @@ stages:
               testRunTitle: 'Pruebas E2E - Playwright BDD'
               failTaskOnFailedTests: true
 
-  
+
   # ==========================================
   # STAGE 6 - CLOUD TESTS - SAUCE LABS
   # ==========================================
@@ -380,3 +380,40 @@ stages:
               artifact: 'resultados-sauce'
 
 
+
+  # ==========================================
+  # STAGE 7 - DORA METRICS
+  # ==========================================
+  - stage: DORAMetrics
+    displayName: 'DORAMetrics - Metricas academicas'
+    dependsOn: CloudTests
+    condition: succeeded()
+    jobs:
+      - job: CalcularMetricas
+        displayName: 'Calcular metricas DORA simuladas'
+        steps:
+          - task: UseNode@1
+            displayName: 'Configurar Node.js'
+            inputs:
+              version: '24.x'
+
+          - script: |
+              node --test metricas/tests/*.test.js
+            displayName: 'Validar adaptador y calculadora DORA'
+
+          - script: |
+              node metricas/adaptadores/azure-devops.js
+            displayName: 'Consultar historial y generar datos DORA'
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+          - script: |
+              node metricas/calcular-dora.js
+            displayName: 'Calcular metricas DORA simuladas'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publicar datos DORA'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Build.SourcesDirectory)/metricas/deployments.json'
+              artifact: 'metricas-dora'

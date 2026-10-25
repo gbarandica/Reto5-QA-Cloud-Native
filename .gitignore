@@ -28,6 +28,9 @@ resultados-junit.xml
 # Datos generados
 **/db.json
 
+# Metricas DORA generadas por Azure Pipelines
+/metricas/deployments.json
+
 # Archivos temporales
 *.log
 .DS_Store
