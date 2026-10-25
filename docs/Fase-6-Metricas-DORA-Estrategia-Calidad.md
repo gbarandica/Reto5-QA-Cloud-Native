@@ -726,3 +726,47 @@ La experiencia también permitió identificar y corregir una incompatibilidad en
 3. Integrar monitoreo y registro de incidentes.
 4. Calcular métricas DORA productivas a partir de eventos reales de despliegue y recuperación.
 5. Analizar tendencias históricas mediante reportes periódicos.
+
+## Validación final y resolución de incidencia CI/CD
+
+Durante la validación final de la Fase 6 se identificó una incidencia en la integración entre Azure DevOps y GitHub.
+
+### Incidencia detectada
+
+En el Build 17, la etapa `DORAMetrics` identificó correctamente las ejecuciones elegibles del pipeline, pero falló al consultar la fecha de un commit mediante la API de GitHub, que respondió con HTTP 403.
+
+El diagnóstico confirmó que las solicitudes a GitHub se realizaban sin autenticación. Se identificó como causa probable una restricción de acceso o límite de solicitudes aplicado al agente de Azure DevOps.
+
+### Solución implementada
+
+Se actualizó el adaptador `metricas/adaptadores/azure-devops.js` para permitir autenticación mediante la variable de entorno `GITHUB_TOKEN` y mejorar el diagnóstico de errores HTTP.
+
+Se creó un token de GitHub con permisos mínimos de lectura sobre el repositorio y se configuró como variable secreta en Azure DevOps. Asimismo, se actualizó `azure-pipelines.yml` para proporcionar esta variable exclusivamente a la tarea encargada de consultar el historial de commits.
+
+La corrección se registró en el commit `42d68f0`.
+
+### Validación de la solución
+
+Se ejecutaron satisfactoriamente las 14 pruebas unitarias del módulo DORA.
+
+Posteriormente, Azure DevOps ejecutó el pipeline **#20261025.5 (Build 18)**, obteniendo los siguientes resultados:
+
+- Siete etapas completadas exitosamente.
+- Duración total: 7 minutos y 27 segundos.
+- Pruebas publicadas: 100 % aprobadas.
+- Etapa `DORAMetrics` finalizada correctamente.
+- Artefacto de métricas DORA publicado.
+
+**Evidencia final:**
+
+![Pipeline final exitoso - Build 18](evidencias/fase-6/07_Pipeline_Final_Exitoso_Build18.png)
+
+[Consultar ejecución final en Azure DevOps](https://dev.azure.com/gbarandica/QA-Cloud-Native/_build/results?buildId=18&view=results)
+
+### Conclusión
+
+La incidencia permitió validar el proceso de diagnóstico y resolución de errores de integración en CI/CD, incorporando autenticación segura, gestión de secretos y verificación mediante pruebas automatizadas.
+
+Con la ejecución exitosa del Build 18, se confirma el funcionamiento integral del pipeline de siete etapas y la publicación del artefacto DORA.
+
+Las métricas DORA obtenidas corresponden a una simulación académica y no representan despliegues reales en producción.
