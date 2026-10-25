@@ -250,6 +250,27 @@ async function main() {
       candidato.id
     );
 
+    // DIAGNÓSTICO TEMPORAL:
+    // Mostrar las etapas del primer candidato para comprobar
+    // los nombres y estados reales devueltos por Azure DevOps.
+    if (candidato === candidatos[0]) {
+      console.log("========================================");
+      console.log("DIAGNÓSTICO TIMELINE");
+      console.log(`Build analizado: ${candidato.id}`);
+      console.log("========================================");
+
+      console.table(
+        registrosTimeline
+          .filter((registro) => registro.type === "Stage")
+          .map((registro) => ({
+            name: registro.name,
+            state: registro.state,
+            result: registro.result
+          }))
+      );
+    }
+
+    // Conservar la validación original de las seis etapas.
     if (tieneEtapasObligatorias(registrosTimeline)) {
       desplieguesElegibles.push(candidato);
 
