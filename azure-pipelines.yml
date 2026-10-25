@@ -406,6 +406,7 @@ stages:
             displayName: 'Consultar historial y generar datos DORA'
             env:
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              GITHUB_TOKEN: $(GITHUB_TOKEN)
 
           - script: |
               node metricas/calcular-dora.js

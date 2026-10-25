@@ -175,17 +175,37 @@ async function obtenerFechaCommit(sha) {
   const url =
     `https://api.github.com/repos/gbarandica/Reto5-QA-Cloud-Native/commits/${sha}`;
 
+  // 5. Obtener desde GitHub la fecha real de un commit.
+  const token = process.env.GITHUB_TOKEN?.trim();
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "Reto5-DORA-Metrics",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const respuesta = await fetch(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "Reto5-DORA-Metrics"
-    },
+    headers,
     redirect: "manual"
   });
 
   if (!respuesta.ok) {
+    const limiteRestante =
+      respuesta.headers.get("x-ratelimit-remaining");
+
+    const mensaje =
+      respuesta.status === 403
+        ? "Posible restricción de permisos o límite de solicitudes de GitHub."
+        : "La API de GitHub rechazó la consulta.";
+
     throw new Error(
-      `No se pudo consultar el commit ${sha}: HTTP ${respuesta.status}`
+      `No se pudo consultar el commit ${sha}: ` +
+      `HTTP ${respuesta.status}. ${mensaje} ` +
+      `RateLimit-Remaining: ${limiteRestante ?? "desconocido"}`
     );
   }
 
