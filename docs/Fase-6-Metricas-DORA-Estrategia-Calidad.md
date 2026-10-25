@@ -2,7 +2,7 @@
 
 **Proyecto:** Reto 5 – QA Cloud-Native
 **Módulo:** Automatización Inteligente con IA Generativa
-**Estado:** Implementación local completada; integración de métricas en Azure DevOps pendiente de validación
+**Estado:** Implementación e integración validadas en Azure DevOps; métricas académicas simuladas generadas y publicadas
 **Objetivo:** evaluar el desempeño del flujo CI/CD, representar la estrategia de pruebas, automatizar la obtención de indicadores académicos inspirados en DORA e identificar riesgos de calidad y sus mitigaciones.
 
 ---
@@ -51,8 +51,48 @@ Una ejecución exitosa del pipeline no equivale necesariamente a un despliegue e
 
 **Nota:** estos valores no representan métricas DORA medidas en producción. Son estimaciones razonadas y objetivos propuestos para una futura operación del sistema.
 
-Los resultados que genere el módulo `DORAMetrics` se presentarán por separado como métricas académicas de entregas simuladas.
+Los resultados generados por el módulo `DORAMetrics` se presentan por separado como métricas académicas de entregas simuladas.
 
+### 1.2.1. Resultados de la ejecución integrada en Azure DevOps
+
+La integración fue validada mediante la ejecución
+[#20261025.3](https://dev.azure.com/gbarandica/QA-Cloud-Native/_build/results?buildId=16&view=results).
+
+| Indicador | Resultado |
+|---|---|
+| Identificador de ejecución | `#20261025.3` |
+| Build ID | `16` |
+| Etapas aprobadas | 7 de 7 |
+| Pruebas unitarias del módulo DORA | 14 aprobadas |
+| Duración del pipeline | 7 minutos y 25 segundos |
+| Artefacto publicado | `metricas-dora` |
+
+**Métricas académicas calculadas:**
+
+| Métrica | Resultado |
+|---|---|
+| Despliegues simulados | 2 |
+| Ventana observada | 1 día |
+| Deployment Frequency | 2 despliegues simulados/día |
+| Lead Time for Changes | 0,13 horas |
+| Change Failure Rate | 0 % simulado |
+| MTTR | No calculable (sin incidentes registrados) |
+
+**Interpretación:** las entregas se simulan a partir de ejecuciones
+exitosas que superaron las seis etapas obligatorias. El resultado de
+Change Failure Rate es 0 % porque los registros elegibles se generan
+con `failed: false`; no demuestra ausencia de incidentes productivos.
+
+El MTTR no puede calcularse porque no existen registros de incidentes
+con fechas de recuperación. Los resultados no representan despliegues
+reales a producción.
+
+**Evidencias:**
+
+- [03 - Pipeline con siete etapas exitosas](evidencias/fase-6/03_Ejecucion_Exitosa_Pipeline_DORA.png)
+- [04 - Etapa DORAMetrics exitosa](evidencias/fase-6/04_Etapa_DORAMetrics_Exitosa.png)
+- [05 - Artefacto DORA publicado](evidencias/fase-6/05_Artefacto_DORA_Publicado.png)
+- [06 - Resultados de métricas DORA](evidencias/fase-6/06_Resultados_Metricas_DORA.png)
 ### 1.3. Indicadores históricos de Azure DevOps
 
 Se analizó una muestra del historial visible de ejecuciones del pipeline, anterior a la incorporación de la etapa `DORAMetrics`.
@@ -328,7 +368,7 @@ La consulta de Azure DevOps utiliza la variable `SYSTEM_ACCESSTOKEN`.
 
 Esta variable se entrega al proceso mediante la configuración `env` del paso correspondiente.
 
-La integración deberá confirmar que la identidad del pipeline cuenta con permisos suficientes para consultar el historial de ejecuciones y sus Timelines.
+La ejecución `#20261025.3` confirmó que la identidad del pipeline dispone de los permisos necesarios para consultar el historial de ejecuciones y sus Timelines.
 
 No se almacenan tokens de acceso directamente en el código fuente.
 
@@ -346,12 +386,34 @@ Para un entorno productivo se recomienda evaluar una política que separe los er
 
 #### 1.8.4. Estado de integración
 
-La configuración de la etapa `DORAMetrics` se encuentra incorporada localmente al YAML.
+La etapa `DORAMetrics` fue integrada y validada exitosamente en Azure DevOps.
 
-**Pendiente:** realizar la primera ejecución integrada en Azure DevOps y comprobar la autenticación, las consultas externas, la generación de datos y la publicación del artefacto.
+**Ejecución validada:** `#20261025.3` (Build ID `16`).
 
-No se reportan resultados de esa integración hasta contar con una ejecución verificable.
+**Resultados obtenidos:**
 
+- Siete etapas del pipeline completadas satisfactoriamente.
+- Catorce pruebas unitarias del módulo DORA aprobadas.
+- Consulta del historial de Azure DevOps ejecutada correctamente.
+- Validación de las seis etapas obligatorias mediante los registros Timeline.
+- Obtención de fechas de commits desde GitHub.
+- Generación de `metricas/deployments.json`.
+- Cálculo de los cuatro indicadores académicos.
+- Publicación exitosa del artefacto `metricas-dora`.
+
+Durante la integración se detectó que Azure DevOps devuelve los nombres
+descriptivos (`displayName`) de las etapas en los registros Timeline.
+El adaptador inicialmente esperaba los identificadores cortos definidos
+en YAML, por lo que descartaba ejecuciones que sí cumplían los controles.
+
+Se corrigió la correspondencia entre los identificadores y los nombres
+descriptivos de las seis etapas obligatorias. Posteriormente se
+validaron los casos positivos y negativos mediante pruebas unitarias
+y se confirmó el funcionamiento en una nueva ejecución del pipeline.
+
+**Resultado:** integración funcional y evidenciada. Los indicadores
+generados siguen siendo simulaciones académicas y no métricas de
+despliegues productivos.
 ### 1.9. Pruebas automatizadas del módulo DORA
 
 Se implementaron 14 pruebas unitarias utilizando el sistema de pruebas nativo de Node.js.
@@ -402,7 +464,7 @@ node --test .\metricas\tests\*.test.js
 
 Estos resultados demuestran que los escenarios unitarios implementados funcionan con los datos de prueba utilizados.
 
-No constituyen todavía una validación de las consultas HTTP reales ni de la ejecución integrada de la etapa en Azure DevOps.
+Las pruebas unitarias no validan por sí solas las consultas HTTP reales. Sin embargo, la ejecución integrada `#20261025.3` confirmó el funcionamiento del adaptador con Azure DevOps y GitHub.
 
 #### 1.9.4. Buenas prácticas aplicadas
 
@@ -469,7 +531,7 @@ Esta distinción es importante: las pruebas unitarias del módulo DORA validan c
 | Rendimiento | k6 | Implementado | Evalúa tiempos de respuesta y errores bajo carga mediante Quality Gates. |
 | Infraestructura | Docker y Azure Container Registry | Implementado | Facilitan la ejecución reproducible y distribución de la aplicación contenerizada. |
 | Orquestación CI/CD | Azure DevOps | Implementado | Automatiza las validaciones y coordina las etapas del pipeline. |
-| Observabilidad de CI | Módulo DORA en Node.js | Implementado localmente | Procesa el historial del pipeline y calcula indicadores académicos. |
+| Observabilidad de CI | Módulo DORA en Node.js | Integrado y validado en Azure DevOps | Procesa el historial del pipeline y calcula indicadores académicos. |
 
 **Aclaración:** k6, Docker, Azure Container Registry, Azure DevOps y el módulo DORA no constituyen niveles de la pirámide de pruebas funcionales. Son herramientas complementarias de rendimiento, infraestructura, orquestación y observabilidad.
 
@@ -609,27 +671,28 @@ Las principales prioridades de mejora son:
 
 ## 4. Conclusiones generales
 
-La Fase 6 complementa el pipeline QA Cloud-Native con una estrategia de medición y documentación de calidad.
+La Fase 6 se completó mediante la implementación y validación de un módulo de métricas DORA académicas integrado en Azure DevOps.
 
-El proyecto cuenta con seis etapas principales de construcción y pruebas, además de una séptima etapa de métricas incorporada localmente.
+El pipeline cuenta con siete etapas automatizadas: `Build`, `SmokeTests`, `ContractTests`, `LoadTest`, `E2ETests`, `CloudTests` y `DORAMetrics`.
 
-La implementación del módulo DORA permite:
+La ejecución `#20261025.3` (Build ID `16`) confirmó el funcionamiento de las siete etapas, la aprobación de las 14 pruebas unitarias del módulo DORA y la publicación del artefacto `metricas-dora`.
 
-- Consultar ejecuciones históricas de Azure DevOps.
-- Validar que las seis etapas obligatorias hayan terminado exitosamente.
-- Obtener fechas de commits desde GitHub.
-- Generar registros de entregas simuladas.
-- Calcular indicadores académicos.
-- Verificar la lógica mediante 14 pruebas unitarias.
-- Preparar la publicación de evidencias como artefactos del pipeline.
+Los resultados académicos obtenidos fueron:
 
-La estrategia de pruebas combina validaciones API, contratos, rendimiento, E2E locales y E2E remotas.
+- **Deployment Frequency:** 2 entregas simuladas por día.
+- **Lead Time for Changes:** 0,13 horas.
+- **Change Failure Rate:** 0 % simulado.
+- **MTTR:** no calculable por ausencia de incidentes registrados.
 
-La principal mejora pendiente de la pirámide consiste en incorporar pruebas unitarias dedicadas a las reglas de negocio de Tienda QA.
+Estos indicadores no representan despliegues reales a producción. En particular, el 0 % de Change Failure Rate resulta del modelo académico, que utiliza registros elegibles marcados como no fallidos.
 
-Finalmente, el proyecto demuestra la importancia de distinguir entre **ejecuciones de CI, entregas simuladas y despliegues productivos reales**.
+La estrategia de calidad combina pruebas smoke de API, contratos Pact, pruebas de rendimiento k6, escenarios E2E con Playwright y pytest-bdd, ejecución remota en Sauce Labs y pruebas unitarias del módulo de métricas.
 
-Esta distinción permite utilizar los indicadores de forma responsable y evita extraer conclusiones que los datos disponibles todavía no respaldan.
+Como oportunidad de mejora se mantiene la incorporación de pruebas unitarias para la lógica de negocio de Tienda QA, así como la implementación futura de despliegues controlados, monitoreo e incidentes productivos.
+
+La experiencia también permitió identificar y corregir una incompatibilidad entre los identificadores de etapas definidos en YAML y los nombres descriptivos devueltos por la API Timeline de Azure DevOps.
+
+**Conclusión:** se completó la integración de métricas académicas al pipeline CI/CD, conservando los controles de calidad existentes y documentando explícitamente las limitaciones de los indicadores.
 
 ---
 
@@ -641,16 +704,25 @@ Esta distinción permite utilizar los indicadores de forma responsable y evita e
 | Evidencia del historial de Azure DevOps | Disponible |
 | Diseño del módulo DORA | Completado |
 | Implementación del adaptador | Completado |
-| Validación de las seis etapas obligatorias | Completada mediante pruebas unitarias |
+| Validación de las seis etapas obligatorias | Completada |
+| Corrección de nombres `displayName` en Timeline | Completada |
 | Implementación de la calculadora | Completada |
-| Ejecución de 14 pruebas unitarias | Aprobada localmente |
-| Configuración local de la etapa `DORAMetrics` | Completada |
-| Configuración de `.gitignore` | Verificada |
-| Documentación técnica del módulo | Elaborada |
-| Primera ejecución integrada en Azure DevOps | Pendiente |
-| Validación del artefacto `metricas-dora` | Pendiente |
-| Incorporación de resultados de la simulación al informe | Pendiente |
+| Ejecución de 14 pruebas unitarias | Aprobada |
+| Integración de `DORAMetrics` en Azure Pipelines | Validada |
+| Ejecución de siete etapas del pipeline | Exitosa |
+| Generación de `metricas/deployments.json` | Validada |
+| Publicación del artefacto `metricas-dora` | Exitosa |
+| Incorporación de resultados al informe | Completada |
+| Evidencias de la ejecución integrada | Disponibles |
 
-Una vez ejecutada correctamente la etapa `DORAMetrics` en Azure DevOps, se deberá registrar el identificador de ejecución, revisar los valores calculados y conservar la evidencia del artefacto generado.
+**Ejecución final validada:** [#20261025.3](https://dev.azure.com/gbarandica/QA-Cloud-Native/_build/results?buildId=16&view=results).
 
-Los resultados deberán mantenerse claramente identificados como métricas académicas de entregas simuladas, hasta que el proyecto incorpore despliegues reales y registros de incidentes de producción.
+**Duración total:** 7 minutos y 25 segundos.
+
+**Próximas mejoras recomendadas:**
+
+1. Incorporar pruebas unitarias de las reglas de negocio de Tienda QA.
+2. Implementar despliegues reales en un entorno controlado.
+3. Integrar monitoreo y registro de incidentes.
+4. Calcular métricas DORA productivas a partir de eventos reales de despliegue y recuperación.
+5. Analizar tendencias históricas mediante reportes periódicos.
